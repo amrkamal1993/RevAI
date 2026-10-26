@@ -1,6 +1,59 @@
 export const CODING_RULES = [
     // ==========================================
-    // JAVASCRIPT / TYPESCRIPT
+    // REACT & NEXT.JS (TYPESCRIPT / JAVASCRIPT)
+    // ==========================================
+    {
+        id: 'REACT-001',
+        language: 'react',
+        category: 'reliability',
+        severity: 'major',
+        name: 'Stale Closure / Missing Hook Dependencies',
+        description: 'Omitting state variables or props from the dependency array of useEffect, useMemo, or useCallback causes stale closures, where the hook references outdated values from previous renders.',
+        badExample: 'useEffect(() => { fetchUserData(userId, filter); }, []); // ❌ Missing userId and filter',
+        goodExample: 'useEffect(() => { fetchUserData(userId, filter); }, [userId, filter]);'
+    },
+    {
+        id: 'REACT-002',
+        language: 'react',
+        category: 'performance',
+        severity: 'critical',
+        name: 'Unconditional State Update in Component Body',
+        description: 'Calling setState directly in the render body of a component without useEffect or event handlers causes an immediate infinite re-render loop that crashes the browser tab.',
+        badExample: 'function Profile({ user }) { setUserName(user.name); return <div>{user.name}</div>; }',
+        goodExample: 'useEffect(() => { setUserName(user.name); }, [user.name]);'
+    },
+    {
+        id: 'REACT-003',
+        language: 'react',
+        category: 'reliability',
+        severity: 'minor',
+        name: 'Index as Key in Dynamic Lists',
+        description: 'Using array index as the "key" prop in dynamic lists causes rendering bugs, component state corruption, and broken animation transitions when items are reordered, inserted, or filtered.',
+        badExample: '{items.map((item, index) => <TodoItem key={index} data={item} />)}',
+        goodExample: '{items.map((item) => <TodoItem key={item.id} data={item} />)}'
+    },
+    {
+        id: 'NEXT-001',
+        language: 'nextjs',
+        category: 'security',
+        severity: 'critical',
+        name: 'Secret Leak Across Client-Server Boundary',
+        description: 'Passing private environment variables, database clients, or secret API keys into Client Components (\'use client\') exposes sensitive server credentials in the client-side JavaScript bundle.',
+        badExample: '// In Server Component:\n<ClientUserCard user={user} privateApiKey={process.env.INTERNAL_KEY} />',
+        goodExample: '// Strip server secrets before passing props to Client Component:\n<ClientUserCard user={{ id: user.id, name: user.name }} />'
+    },
+    {
+        id: 'NEXT-002',
+        language: 'nextjs',
+        category: 'security',
+        severity: 'critical',
+        name: 'Missing Authentication / CSRF Check in Server Actions',
+        description: 'Next.js Server Actions (\'use server\') act as public POST endpoints. They MUST independently verify user authentication and resource authorization before executing mutations.',
+        badExample: '\'use server\';\nexport async function deleteOrder(orderId: string) { await db.order.delete({ where: { id: orderId } }); }',
+        goodExample: '\'use server\';\nexport async function deleteOrder(orderId: string) {\n  const session = await auth();\n  if (!session?.user?.id) throw new UnauthorizedError();\n  await db.order.delete({ where: { id: orderId, userId: session.user.id } });\n}'
+    },
+    // ==========================================
+    // JAVASCRIPT / TYPESCRIPT CORE
     // ==========================================
     {
         id: 'TS-001',
@@ -52,18 +105,8 @@ export const CODING_RULES = [
         badExample: 'if (status == 0) { ... }',
         goodExample: 'if (status === 0) { ... }'
     },
-    {
-        id: 'TS-006',
-        language: 'typescript',
-        category: 'performance',
-        severity: 'major',
-        name: 'Missing React Hook Dependencies',
-        description: 'Omitting reactive values from the dependency array of useEffect, useMemo, or useCallback leads to stale closures and bugs.',
-        badExample: 'useEffect(() => { loadUser(userId); }, []);',
-        goodExample: 'useEffect(() => { loadUser(userId); }, [userId, loadUser]);'
-    },
     // ==========================================
-    // DART / FLUTTER
+    // FLUTTER & DART
     // ==========================================
     {
         id: 'FLUTTER-001',
@@ -105,9 +148,49 @@ export const CODING_RULES = [
         badExample: 'Widget build(BuildContext context) { final sorted = sortMillionItems(data); return ListView(...); }',
         goodExample: 'Perform heavy calculation in initState, compute isolate, or state manager, not inside build().'
     },
+    {
+        id: 'FLUTTER-005',
+        language: 'dart',
+        category: 'performance',
+        severity: 'major',
+        name: 'Provider / Riverpod Over-Subscription',
+        description: 'Calling context.watch() or ref.watch() on an entire broad state object when only a single property is needed causes the entire widget tree to rebuild on every unrelated state update.',
+        badExample: 'final state = ref.watch(appStateProvider); // ❌ Rebuilds on ANY change in appState',
+        goodExample: 'final userName = ref.watch(appStateProvider.select((s) => s.user.name)); // ✅ Rebuilds only when name changes'
+    },
     // ==========================================
-    // PYTHON
+    // FASTAPI, DJANGO & PYTHON WEB
     // ==========================================
+    {
+        id: 'FASTAPI-001',
+        language: 'fastapi',
+        category: 'performance',
+        severity: 'critical',
+        name: 'Blocking Synchronous I/O in Async Endpoint',
+        description: 'Calling synchronous blocking operations (such as time.sleep(), requests.get(), or blocking DB drivers) inside an "async def" route blocks FastAPI\'s entire single event loop thread, preventing all concurrent requests.',
+        badExample: '@app.get("/items")\nasync def get_items():\n    time.sleep(2) # ❌ Blocks entire async event loop!\n    res = requests.get("https://api.com") # ❌ Blocking I/O\n    return res.json()',
+        goodExample: '@app.get("/items")\nasync def get_items():\n    await asyncio.sleep(2) # ✅ Non-blocking\n    async with httpx.AsyncClient() as client:\n        res = await client.get("https://api.com")\n    return res.json()'
+    },
+    {
+        id: 'FASTAPI-002',
+        language: 'fastapi',
+        category: 'reliability',
+        severity: 'critical',
+        name: 'Database Session Leak in Dependency Injection',
+        description: 'Database sessions injected via FastAPI Depends must properly close connections using a generator with try/finally to prevent connection pool exhaustion.',
+        badExample: 'def get_db():\n    db = SessionLocal()\n    return db # ❌ Never closed! Leaks database connections',
+        goodExample: 'def get_db():\n    db = SessionLocal()\n    try:\n        yield db\n    finally:\n        db.close()'
+    },
+    {
+        id: 'DJANGO-001',
+        language: 'django',
+        category: 'performance',
+        severity: 'major',
+        name: 'N+1 Query Problem in ORM',
+        description: 'Traversing foreign key or many-to-many relationships in a loop without select_related() or prefetch_related() executes one new SQL query per row (N+1 queries), destroying database performance.',
+        badExample: 'orders = Order.objects.all()\nfor o in orders:\n    print(o.customer.name) # ❌ Triggers 1 SQL query per order!',
+        goodExample: 'orders = Order.objects.select_related("customer").all()\nfor o in orders:\n    print(o.customer.name) # ✅ Single SQL JOIN query'
+    },
     {
         id: 'PY-001',
         language: 'python',
@@ -129,16 +212,6 @@ export const CODING_RULES = [
         goodExample: 'try: do_work() except (ValueError, KeyError) as e: logger.error(f"Failed: {e}")'
     },
     {
-        id: 'PY-003',
-        language: 'python',
-        category: 'maintainability',
-        severity: 'major',
-        name: 'Unclosed Resource / Not Using Context Manager',
-        description: 'Files, network sockets, and database connections must be opened using "with" statements to guarantee closure even on exceptions.',
-        badExample: 'f = open("data.txt"); data = f.read(); f.close()',
-        goodExample: 'with open("data.txt") as f: data = f.read()'
-    },
-    {
         id: 'PY-004',
         language: 'python',
         category: 'security',
@@ -149,7 +222,30 @@ export const CODING_RULES = [
         goodExample: 'cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))'
     },
     // ==========================================
-    // GOLANG
+    // NODE.JS / EXPRESS / NESTJS
+    // ==========================================
+    {
+        id: 'NODE-001',
+        language: 'nodejs',
+        category: 'performance',
+        severity: 'critical',
+        name: 'Synchronous I/O in Request Handler',
+        description: 'Calling fs.readFileSync, execSync, or synchronous crypto functions inside request handlers halts the Node.js event loop, preventing all concurrent HTTP requests from processing.',
+        badExample: 'app.get("/config", (req, res) => { const data = fs.readFileSync("config.json"); res.send(data); });',
+        goodExample: 'app.get("/config", async (req, res) => { const data = await fs.promises.readFile("config.json"); res.send(data); });'
+    },
+    {
+        id: 'NEST-001',
+        language: 'nestjs',
+        category: 'security',
+        severity: 'critical',
+        name: 'User State Leaked in Singleton Service',
+        description: 'NestJS injectable providers are Singletons by default. Storing request-scoped state (e.g. current user, auth tokens) in class properties leaks user data across concurrent user requests.',
+        badExample: '@Injectable()\nexport class AuthService {\n  private currentUser: User; // ❌ Leaks state across all requests!\n}',
+        goodExample: 'Pass the user context as a parameter to methods, or use @Inject(REQUEST) with Scope.REQUEST if strictly necessary.'
+    },
+    // ==========================================
+    // GOLANG (GIN / FIBER / STD)
     // ==========================================
     {
         id: 'GO-001',
@@ -172,18 +268,28 @@ export const CODING_RULES = [
         goodExample: 'Use buffered channel of size 1 or select with ctx.Done(): select { case ch <- res: case <-ctx.Done(): return }'
     },
     {
-        id: 'GO-003',
+        id: 'GO-004',
         language: 'go',
-        category: 'performance',
+        category: 'reliability',
         severity: 'major',
-        name: 'Defer in Long or Infinite Loops',
-        description: 'Deferred calls execute only when the enclosing function returns, not when the loop iteration ends. This exhausts file descriptors or memory.',
-        badExample: 'for _, file := range files { f, _ := os.Open(file); defer f.Close(); }',
-        goodExample: 'Wrap body in an anonymous function: for _, file := range files { func() { f, _ := os.Open(file); defer f.Close(); ... }() }'
+        name: 'Unclosed HTTP Response Body',
+        description: 'Failing to close resp.Body prevents TCP connection reuse and exhausts open file descriptors and socket pools.',
+        badExample: 'resp, err := http.Get(url)\nif err != nil { return err }\nbody, _ := io.ReadAll(resp.Body) // ❌ Missing defer resp.Body.Close()',
+        goodExample: 'resp, err := http.Get(url)\nif err != nil { return err }\ndefer resp.Body.Close()\nbody, err := io.ReadAll(resp.Body)'
     },
     // ==========================================
-    // JAVA / KOTLIN
+    // SPRING BOOT & JAVA / KOTLIN
     // ==========================================
+    {
+        id: 'SPRING-001',
+        language: 'spring',
+        category: 'reliability',
+        severity: 'critical',
+        name: '@Transactional Self-Invocation Bypass',
+        description: 'Calling a @Transactional method from another method within the same class bypasses the Spring AOP proxy. The transaction will NOT be initiated, leaving mutations non-atomic.',
+        badExample: 'public void process() { this.saveInTransaction(); } // ❌ Bypasses proxy\n@Transactional public void saveInTransaction() { ... }',
+        goodExample: 'Inject self-reference or extract transactional method to a separate service class.'
+    },
     {
         id: 'JAVA-001',
         language: 'java',
@@ -194,41 +300,28 @@ export const CODING_RULES = [
         badExample: 'try { doSomething(); } catch (Exception e) {}',
         goodExample: 'try { doSomething(); } catch (Exception e) { logger.error("Operation failed", e); throw new ServiceException(e); }'
     },
+    // ==========================================
+    // LARAVEL & PHP
+    // ==========================================
     {
-        id: 'JAVA-002',
-        language: 'java',
-        category: 'reliability',
+        id: 'LARAVEL-001',
+        language: 'laravel',
+        category: 'performance',
         severity: 'major',
-        name: 'Potential NullPointerException',
-        description: 'Accessing methods on objects without null checks or Optional chaining causes NullPointerExceptions. Use Optional or Objects.requireNonNull().',
-        badExample: 'return user.getAddress().getCity();',
-        goodExample: 'return Optional.ofNullable(user).map(User::getAddress).map(Address::getCity).orElse("Unknown");'
+        name: 'Eloquent N+1 Query Problem',
+        description: 'Accessing Eloquent model relations inside a loop without eager loading (using with()) executes N additional database queries.',
+        badExample: '$books = Book::all(); foreach ($books as $b) { echo $b->author->name; } // ❌ N+1 queries',
+        goodExample: '$books = Book::with("author")->get(); foreach ($books as $b) { echo $b->author->name; } // ✅ 2 queries only'
     },
-    // ==========================================
-    // PHP
-    // ==========================================
     {
-        id: 'PHP-001',
-        language: 'php',
+        id: 'LARAVEL-002',
+        language: 'laravel',
         category: 'security',
         severity: 'critical',
-        name: 'SQL Injection via Unprepared Queries',
-        description: 'Concatenating user inputs into PDO or mysqli queries enables full database compromise. Use prepared statements with parameters.',
-        badExample: '$db->query("SELECT * FROM users WHERE email = \'" . $_POST["email"] . "\'");',
-        goodExample: '$stmt = $db->prepare("SELECT * FROM users WHERE email = :email"); $stmt->execute(["email" => $_POST["email"]]);'
-    },
-    // ==========================================
-    // RUST
-    // ==========================================
-    {
-        id: 'RUST-001',
-        language: 'rust',
-        category: 'reliability',
-        severity: 'major',
-        name: 'Using .unwrap() in Production Code',
-        description: 'Calling .unwrap() panics and crashes the application on None or Err. Use pattern matching, if-let, or the ? operator.',
-        badExample: 'let config = read_config().unwrap();',
-        goodExample: 'let config = read_config().map_err(|e| AppError::Config(e))?;'
+        name: 'Mass Assignment Vulnerability',
+        description: 'Using un-guarded models or blindly passing $request->all() to create() or update() enables malicious users to overwrite sensitive fields such as is_admin or balance.',
+        badExample: 'User::create($request->all()); // ❌ Allows user to submit is_admin=1',
+        goodExample: 'User::create($request->validated()); // ✅ Only uses validated attributes'
     },
     // ==========================================
     // UNIVERSAL SECURITY (OWASP) & SECRETS
@@ -293,20 +386,33 @@ export function getRulesForLanguages(languages) {
         if (rule.language === 'universal')
             return true;
         return normalizedLangs.some(lang => {
-            if (rule.language === 'typescript' && (lang === 'ts' || lang === 'tsx' || lang === 'typescript'))
+            // TypeScript / JavaScript / React / Next.js / Node
+            if ((rule.language === 'typescript' || rule.language === 'react' || rule.language === 'nextjs' || rule.language === 'nodejs') &&
+                (lang === 'ts' || lang === 'tsx' || lang === 'typescript' || lang === 'js' || lang === 'jsx' || lang === 'javascript')) {
                 return true;
-            if (rule.language === 'javascript' && (lang === 'js' || lang === 'jsx' || lang === 'javascript' || lang === 'ts' || lang === 'typescript'))
+            }
+            if (rule.language === 'javascript' && (lang === 'js' || lang === 'jsx' || lang === 'javascript' || lang === 'ts' || lang === 'tsx'))
                 return true;
+            // Dart / Flutter
             if (rule.language === 'dart' && (lang === 'dart' || lang === 'flutter'))
                 return true;
-            if (rule.language === 'python' && (lang === 'py' || lang === 'python'))
+            // Python / FastAPI / Django
+            if ((rule.language === 'python' || rule.language === 'fastapi' || rule.language === 'django') &&
+                (lang === 'py' || lang === 'python')) {
                 return true;
+            }
+            // Go / Golang
             if (rule.language === 'go' && (lang === 'go' || lang === 'golang'))
                 return true;
-            if (rule.language === 'java' && (lang === 'java' || lang === 'kotlin' || lang === 'kt'))
+            // Java / Kotlin / Spring
+            if ((rule.language === 'java' || rule.language === 'spring') &&
+                (lang === 'java' || lang === 'kotlin' || lang === 'kt')) {
                 return true;
-            if (rule.language === 'php' && (lang === 'php'))
+            }
+            // PHP / Laravel
+            if ((rule.language === 'php' || rule.language === 'laravel') && (lang === 'php'))
                 return true;
+            // Rust
             if (rule.language === 'rust' && (lang === 'rs' || lang === 'rust'))
                 return true;
             return false;

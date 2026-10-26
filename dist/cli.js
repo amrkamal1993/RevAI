@@ -279,13 +279,21 @@ program
             return true;
         if ((targetLang === 'flutter' || targetLang === 'dart') && ruleLang === 'dart')
             return true;
-        if ((targetLang === 'js' || targetLang === 'javascript') && ruleLang === 'javascript')
+        if ((targetLang === 'react' || targetLang === 'next' || targetLang === 'nextjs') && (ruleLang === 'react' || ruleLang === 'nextjs'))
             return true;
-        if ((targetLang === 'ts' || targetLang === 'typescript') && (ruleLang === 'typescript' || ruleLang === 'javascript'))
+        if ((targetLang === 'node' || targetLang === 'nodejs' || targetLang === 'nest' || targetLang === 'nestjs') && (ruleLang === 'nodejs' || ruleLang === 'nestjs'))
             return true;
-        if ((targetLang === 'py' || targetLang === 'python') && ruleLang === 'python')
+        if ((targetLang === 'fastapi' || targetLang === 'django' || targetLang === 'py' || targetLang === 'python') && (ruleLang === 'python' || ruleLang === 'fastapi' || ruleLang === 'django'))
+            return true;
+        if ((targetLang === 'js' || targetLang === 'javascript') && (ruleLang === 'javascript' || ruleLang === 'react'))
+            return true;
+        if ((targetLang === 'ts' || targetLang === 'typescript') && (ruleLang === 'typescript' || ruleLang === 'react' || ruleLang === 'nextjs'))
             return true;
         if ((targetLang === 'golang' || targetLang === 'go') && ruleLang === 'go')
+            return true;
+        if ((targetLang === 'spring' || targetLang === 'springboot' || targetLang === 'java') && (ruleLang === 'java' || ruleLang === 'spring'))
+            return true;
+        if ((targetLang === 'laravel' || targetLang === 'php') && (ruleLang === 'php' || ruleLang === 'laravel'))
             return true;
         return false;
     };
