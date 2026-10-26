@@ -219,7 +219,3 @@ Contributions, new language rules, and feature requests are welcome!
 ## 📄 License
 
 Distributed under the **MIT License**. See `LICENSE` for more information.
-
----
-
-*Made with ❤️ by [Amr Kamal](https://github.com/amrkamal1993) — Powered by Google Gemini.*
