@@ -1,0 +1,47 @@
+{
+  "name": "revai",
+  "version": "1.0.0",
+  "description": "100% Free AI-Powered Code Reviewer CLI & Web Dashboard with Preloaded Language Rules & Scoring",
+  "main": "dist/cli.js",
+  "bin": {
+    "revai": "./bin/revai.js"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "tsx src/cli.ts",
+    "dev": "tsx watch src/cli.ts",
+    "test-review": "tsx src/cli.ts review --staged"
+  },
+  "keywords": [
+    "code-review",
+    "ai",
+    "gemini",
+    "git",
+    "linter",
+    "pull-request",
+    "static-analysis",
+    "quality-score"
+  ],
+  "author": "Amr Kamal",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/amrkamal1993/RevAI.git"
+  },
+  "bugs": {
+    "url": "https://github.com/amrkamal1993/RevAI/issues"
+  },
+  "homepage": "https://github.com/amrkamal1993/RevAI#readme",
+  "dependencies": {
+    "commander": "^12.1.0",
+    "dotenv": "^16.4.7",
+    "open": "^10.1.0",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

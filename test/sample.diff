@@ -1,0 +1,50 @@
+diff --git a/lib/screens/login_screen.dart b/lib/screens/login_screen.dart
+index e69de29..b2b1a20 100644
+--- a/lib/screens/login_screen.dart
++++ b/lib/screens/login_screen.dart
+@@ -1,15 +1,28 @@
+ import 'package:flutter/material.dart';
++import 'package:http/http.dart' as http;
+ 
+ class LoginScreen extends StatefulWidget {
+   @override
+   _LoginScreenState createState() => _LoginScreenState();
+ }
+ 
+ class _LoginScreenState extends State<LoginScreen> {
++  final TextEditingController _passwordController = TextEditingController();
++  bool _isLoading = false;
++
++  Future<void> _submitLogin() async {
++    setState(() { _isLoading = true; });
++    final response = await http.post(Uri.parse('https://api.example.com/login'));
++    // Bug: Missing mounted check across async gap!
++    setState(() {
++      _isLoading = false;
++    });
++  }
++  // Bug: _passwordController is never disposed!
++
+   @override
+   Widget build(BuildContext context) {
+     return Scaffold(
+       body: Center(
+         child: ElevatedButton(
+           onPressed: _submitLogin,
+           child: Text("Login"),
+diff --git a/src/services/auth.ts b/src/services/auth.ts
+index e69de29..c3a1b40 100644
+--- a/src/services/auth.ts
++++ b/src/services/auth.ts
+@@ -1,5 +1,12 @@
+-export function verifyToken() {}
++export const JWT_SECRET = "sk_live_super_secret_production_key_123456";
++
++export async function loginUser(payload: any) {
++  // Loose equality and unhandled promise
++  if (payload.role == 1) {
++    const res = await fetch('/api/admin');
++    return res.json();
++  }
++  return null;
++}
