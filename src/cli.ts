@@ -1,20 +1,26 @@
 import { Command } from 'commander';
 import fs from 'node:fs';
+import readline from 'node:readline/promises';
 import pc from 'picocolors';
 import { runCodeReview } from './review/reviewer.js';
 import { formatTerminalReport } from './formatters/terminal.js';
 import { formatMarkdownReport } from './formatters/markdown.js';
 import { startUiServer } from './server/ui-server.js';
-import { loadGlobalConfig, saveGlobalConfig, resolveApiKey } from './config.js';
+import { 
+  loadGlobalConfig, 
+  saveGlobalConfig, 
+  resolveEffectiveSettings, 
+  AppConfig 
+} from './config.js';
 import { CODING_RULES } from './rules/rules-db.js';
-import { ReviewOptions } from './types.js';
+import { ReviewOptions, AIProvider } from './types.js';
 
 const program = new Command();
 
 program
   .name('revai')
   .description('⚡ 100% Free AI Code Reviewer with Preloaded Language Rules & Performance Scoring')
-  .version('1.0.0');
+  .version('1.1.0');
 
 // Main Review Command
 program
@@ -33,8 +39,10 @@ program
   .option('-m, --markdown', 'Output GitHub-flavored markdown report')
   .option('-j, --json', 'Output raw JSON report')
   .option('-o, --output <file>', 'Save report output to a file')
-  .option('--api-key <key>', 'Google Gemini API Key (or set GEMINI_API_KEY env)')
-  .option('--model <name>', 'Gemini model name', 'gemini-3.5-flash')
+  .option('--api-key <key>', 'API Key for the chosen provider')
+  .option('--provider <name>', 'AI Provider (gemini, groq, ollama, openai, custom)', 'gemini')
+  .option('--model <name>', 'Model name (e.g. gemini-3.5-flash, gemini-3.8-flash, llama-3.3-70b-versatile, gpt-4o-mini)')
+  .option('--base-url <url>', 'Custom API Base URL (for Ollama, DeepSeek, or OpenAI compatible)')
   .action(async (opts) => {
     try {
       const options: ReviewOptions = {
@@ -52,27 +60,44 @@ program
         json: opts.json,
         outputFile: opts.output,
         apiKey: opts.apiKey,
-        model: opts.model
+        provider: opts.provider as AIProvider,
+        model: opts.model,
+        baseUrl: opts.baseUrl
       };
 
-      // Check API Key
-      const key = resolveApiKey(options.apiKey);
-      if (!key) {
+      // Check API Key & Prompt interactively if missing
+      const settings = resolveEffectiveSettings(options);
+      if (settings.provider !== 'ollama' && (!settings.apiKey || settings.apiKey.trim() === '')) {
         console.log('');
-        console.log(pc.yellow(pc.bold('⚠️  Gemini API Key Required:')));
-        console.log(`RevAI uses Google's powerful Gemini model, which offers a ${pc.bold('100% FREE tier')}.`);
-        console.log(`Get your free key in 30 seconds at: ${pc.cyan(pc.underline('https://aistudio.google.com/app/apikey'))}`);
+        console.log(pc.yellow(pc.bold(`⚠️  API Key required for provider "${settings.provider}":`)));
+        if (settings.provider === 'gemini') {
+          console.log(`Google Gemini offers a ${pc.bold('100% FREE tier')}.`);
+          console.log(`Get your key in 30 seconds at: ${pc.cyan(pc.underline('https://aistudio.google.com/app/apikey'))}`);
+        } else if (settings.provider === 'groq') {
+          console.log(`Get your free Groq key at: ${pc.cyan(pc.underline('https://console.groq.com/keys'))}`);
+        }
         console.log('');
-        console.log('You can save it permanently by running:');
-        console.log(`  ${pc.green('revai config --set-key <YOUR_FREE_API_KEY>')}`);
-        console.log('');
-        console.log('Or pass it for this run only:');
-        console.log(`  ${pc.green('revai --api-key <YOUR_FREE_API_KEY>')}`);
-        console.log('');
-        process.exit(1);
+
+        const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+        const inputKey = await rl.question(pc.green('Enter your API key now: '));
+        rl.close();
+
+        if (!inputKey || !inputKey.trim()) {
+          console.log(pc.red('No API key provided. Run "revai config" to set it up.'));
+          process.exit(1);
+        }
+
+        // Save key permanently
+        if (settings.provider === 'gemini') {
+          saveGlobalConfig({ geminiApiKey: inputKey.trim() });
+        } else {
+          saveGlobalConfig({ customApiKey: inputKey.trim() });
+        }
+        console.log(pc.green('✔ API Key saved successfully to ~/.revai/config.json!'));
+        options.apiKey = inputKey.trim();
       }
 
-      console.log(pc.cyan('⚡ Analyzing code changes & auditing against preloaded rules...'));
+      console.log(pc.cyan(`⚡ Running AI Code Review using ${pc.bold(settings.provider.toUpperCase())} (${settings.model})...`));
 
       const result = await runCodeReview(options);
 
@@ -124,29 +149,139 @@ program
 // Configuration Command
 program
   .command('config')
-  .description('Manage global RevAI configuration and free API keys')
-  .option('--set-key <key>', 'Save Google Gemini API key permanently')
+  .description('Manage RevAI settings, default AI model, and API keys')
+  .option('--set-key <key>', 'Save API key permanently')
+  .option('--set-model <model>', 'Set default AI model (e.g. gemini-3.8-flash, llama-3.3-70b-versatile, gpt-4o-mini)')
+  .option('--set-provider <provider>', 'Set default AI provider (gemini, groq, ollama, openai, custom)')
+  .option('--set-url <url>', 'Set custom base URL (e.g. for Ollama or custom proxy)')
   .option('--show', 'Display current configuration')
-  .action((opts) => {
-    if (opts.setKey) {
-      saveGlobalConfig({ geminiApiKey: opts.setKey });
-      console.log(pc.green('✔ Gemini API key saved successfully in ~/.revai/config.json!'));
-      console.log(pc.dim('You can now run "revai" anywhere without entering your key.'));
+  .option('--interactive', 'Run interactive setup wizard')
+  .action(async (opts) => {
+    // Direct flags handler
+    const hasFlags = opts.setKey || opts.setModel || opts.setProvider || opts.setUrl;
+    if (hasFlags) {
+      const updates: Partial<AppConfig> = {};
+      if (opts.setKey) {
+        const cfg = loadGlobalConfig();
+        const prov = opts.setProvider || cfg.defaultProvider || 'gemini';
+        if (prov === 'gemini') updates.geminiApiKey = opts.setKey;
+        else updates.customApiKey = opts.setKey;
+      }
+      if (opts.setModel) updates.defaultModel = opts.setModel;
+      if (opts.setProvider) updates.defaultProvider = opts.setProvider as AIProvider;
+      if (opts.setUrl) updates.baseUrl = opts.setUrl;
+
+      saveGlobalConfig(updates);
+      console.log(pc.green('✔ Configuration updated successfully in ~/.revai/config.json!'));
+      displayConfig();
       return;
     }
 
-    if (opts.show || Object.keys(opts).length === 0) {
-      const cfg = loadGlobalConfig();
-      console.log(pc.bold('RevAI Configuration (~/.revai/config.json):'));
-      if (cfg.geminiApiKey) {
-        const masked = cfg.geminiApiKey.slice(0, 6) + '...' + cfg.geminiApiKey.slice(-4);
-        console.log(`  Gemini API Key: ${pc.green(masked)} (Configured)`);
-      } else {
-        console.log(`  Gemini API Key: ${pc.red('Not set')}`);
-        console.log(`  Get free key at: ${pc.cyan('https://aistudio.google.com/app/apikey')}`);
-      }
+    if (opts.show) {
+      displayConfig();
+      return;
     }
+
+    // Default with no flags: Run interactive wizard!
+    await runInteractiveConfig();
   });
+
+function displayConfig(): void {
+  const cfg = loadGlobalConfig();
+  const settings = resolveEffectiveSettings({});
+
+  console.log('');
+  console.log(pc.bold('RevAI Configuration (~/.revai/config.json):'));
+  console.log(`  Provider:    ${pc.green(settings.provider.toUpperCase())}`);
+  console.log(`  Model:       ${pc.cyan(settings.model)}`);
+  if (cfg.baseUrl) {
+    console.log(`  Base URL:    ${pc.dim(cfg.baseUrl)}`);
+  }
+  if (cfg.geminiApiKey) {
+    const masked = cfg.geminiApiKey.slice(0, 6) + '...' + cfg.geminiApiKey.slice(-4);
+    console.log(`  Gemini Key:  ${pc.green(masked)} (Configured)`);
+  } else {
+    console.log(`  Gemini Key:  ${pc.dim('Not set')}`);
+  }
+  if (cfg.customApiKey) {
+    const masked = cfg.customApiKey.slice(0, 6) + '...' + cfg.customApiKey.slice(-4);
+    console.log(`  Custom Key:  ${pc.green(masked)} (Configured)`);
+  }
+  console.log('');
+  console.log(pc.dim('Run "revai config" anytime to launch the interactive setup wizard.'));
+  console.log('');
+}
+
+async function runInteractiveConfig(): Promise<void> {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const cfg = loadGlobalConfig();
+  const settings = resolveEffectiveSettings({});
+
+  console.log('');
+  console.log(pc.bold(pc.cyan('⚙️  RevAI Interactive Configuration Wizard')));
+  console.log(pc.dim('Configure your preferred AI model, provider, and API keys permanently.'));
+  console.log('');
+
+  // 1. Choose Provider
+  console.log(pc.bold('Available Providers:'));
+  console.log(`  1. ${pc.green('gemini')}  - Google Gemini (3.5/3.8 Flash) [100% Free Tier, Recommended]`);
+  console.log(`  2. ${pc.cyan('groq')}    - Groq Cloud (Llama 3.3 70B, Ultra-fast Free Tier)`);
+  console.log(`  3. ${pc.magenta('ollama')}  - Ollama (100% Offline Local Model, Zero Key Needed)`);
+  console.log(`  4. ${pc.blue('openai')}  - OpenAI or DeepSeek / Custom Compatible Endpoint`);
+  console.log('');
+
+  const providerAns = await rl.question(pc.yellow(`Choose provider [${settings.provider}]: `));
+  const provider = (providerAns.trim() || settings.provider).toLowerCase() as AIProvider;
+
+  // 2. Choose Model
+  let defaultModelForProvider = 'gemini-3.5-flash';
+  if (provider === 'groq') defaultModelForProvider = 'llama-3.3-70b-versatile';
+  else if (provider === 'ollama') defaultModelForProvider = 'qwen2.5-coder';
+  else if (provider === 'openai') defaultModelForProvider = 'gpt-4o-mini';
+
+  const currentModel = cfg.defaultModel || defaultModelForProvider;
+  const modelAns = await rl.question(pc.yellow(`Choose Model name [${currentModel}]: `));
+  const model = modelAns.trim() || currentModel;
+
+  // 3. API Key
+  let keyToSave: string | undefined = undefined;
+  if (provider !== 'ollama') {
+    const existingKey = provider === 'gemini' ? cfg.geminiApiKey : cfg.customApiKey;
+    const masked = existingKey ? `${existingKey.slice(0, 6)}...${existingKey.slice(-4)}` : 'None';
+    console.log(pc.dim(`Current Key: ${masked}`));
+    const keyAns = await rl.question(pc.yellow(`Enter API key (press Enter to keep existing): `));
+    if (keyAns.trim()) {
+      keyToSave = keyAns.trim();
+    }
+  }
+
+  // 4. Base URL
+  let baseUrlToSave: string | undefined = undefined;
+  if (provider === 'ollama' || provider === 'custom' || provider === 'openai') {
+    const defaultUrl = provider === 'ollama' ? 'http://localhost:11434/v1' : (cfg.baseUrl || 'https://api.openai.com/v1');
+    const urlAns = await rl.question(pc.yellow(`Base URL [${defaultUrl}]: `));
+    baseUrlToSave = urlAns.trim() || defaultUrl;
+  }
+
+  rl.close();
+
+  const updates: Partial<AppConfig> = {
+    defaultProvider: provider,
+    defaultModel: model
+  };
+  if (keyToSave) {
+    if (provider === 'gemini') updates.geminiApiKey = keyToSave;
+    else updates.customApiKey = keyToSave;
+  }
+  if (baseUrlToSave) {
+    updates.baseUrl = baseUrlToSave;
+  }
+
+  saveGlobalConfig(updates);
+  console.log('');
+  console.log(pc.bold(pc.green('✔ Configuration updated successfully!')));
+  displayConfig();
+}
 
 // List Preloaded Rules Command
 program

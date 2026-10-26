@@ -77,6 +77,8 @@ export interface CodingRule {
   goodExample?: string;
 }
 
+export type AIProvider = 'gemini' | 'groq' | 'ollama' | 'openai' | 'custom';
+
 export interface ReviewOptions {
   staged?: boolean;
   working?: boolean;
@@ -93,6 +95,7 @@ export interface ReviewOptions {
   outputFile?: string;
   apiKey?: string;
   model?: string;
-  provider?: 'gemini' | 'groq' | 'ollama';
+  provider?: AIProvider;
+  baseUrl?: string;
   verbose?: boolean;
 }

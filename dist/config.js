@@ -31,18 +31,47 @@ export function saveGlobalConfig(config) {
         console.error('Failed to save global configuration:', err);
     }
 }
-export function resolveApiKey(optionsKey, provider = 'gemini') {
-    if (optionsKey)
-        return optionsKey;
-    const envKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GROQ_API_KEY;
-    if (envKey)
-        return envKey;
+export function resolveEffectiveSettings(options) {
     const globalCfg = loadGlobalConfig();
-    if (provider === 'gemini') {
-        return globalCfg.geminiApiKey;
+    // 1. Resolve Provider (CLI flag > global config > default 'gemini')
+    const provider = options.provider || globalCfg.defaultProvider || 'gemini';
+    // 2. Resolve Model (CLI flag > global config > provider default)
+    let defaultModelForProvider = 'gemini-3.5-flash';
+    if (provider === 'groq')
+        defaultModelForProvider = 'llama-3.3-70b-versatile';
+    else if (provider === 'ollama')
+        defaultModelForProvider = 'qwen2.5-coder';
+    else if (provider === 'openai')
+        defaultModelForProvider = 'gpt-4o-mini';
+    const model = options.model || globalCfg.defaultModel || defaultModelForProvider;
+    // 3. Resolve API Key
+    let apiKey = options.apiKey;
+    if (!apiKey) {
+        if (provider === 'gemini') {
+            apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || globalCfg.geminiApiKey;
+        }
+        else if (provider === 'groq') {
+            apiKey = process.env.GROQ_API_KEY || globalCfg.customApiKey;
+        }
+        else if (provider === 'openai') {
+            apiKey = process.env.OPENAI_API_KEY || globalCfg.customApiKey;
+        }
+        else {
+            apiKey = globalCfg.customApiKey || process.env.CUSTOM_API_KEY;
+        }
     }
-    else if (provider === 'groq') {
-        return globalCfg.groqApiKey;
+    // 4. Resolve Base URL
+    let baseUrl = options.baseUrl || globalCfg.baseUrl;
+    if (!baseUrl) {
+        if (provider === 'groq')
+            baseUrl = 'https://api.groq.com/openai/v1';
+        else if (provider === 'ollama')
+            baseUrl = 'http://localhost:11434/v1';
+        else if (provider === 'openai')
+            baseUrl = 'https://api.openai.com/v1';
     }
-    return undefined;
+    return { provider, model, apiKey, baseUrl };
+}
+export function resolveApiKey(optionsKey, provider = 'gemini') {
+    return resolveEffectiveSettings({ apiKey: optionsKey, provider }).apiKey;
 }

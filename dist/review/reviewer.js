@@ -1,7 +1,8 @@
 import { getGitDiff, fetchGitHubPRDiff, analyzeDiffStats } from '../git/git.js';
 import { getRulesForLanguages } from '../rules/rules-db.js';
-import { resolveApiKey } from '../config.js';
+import { resolveEffectiveSettings } from '../config.js';
 import { reviewWithGemini } from '../ai/gemini.js';
+import { reviewWithOpenAICompatible } from '../ai/openai-compatible.js';
 import { calculateReviewScore } from './scoring.js';
 export async function runCodeReview(options) {
     let diffText = '';
@@ -25,15 +26,25 @@ export async function runCodeReview(options) {
     // 3. Select Relevant Preloaded Rules
     const applicableRules = getRulesForLanguages(stats.languagesDetected);
     stats.rulesCheckedCount = applicableRules.length;
-    // 4. Resolve API Key
-    const apiKey = resolveApiKey(options.apiKey, options.provider || 'gemini');
-    // 5. Invoke AI Engine (Gemini Free Tier)
-    const aiResponse = await reviewWithGemini(diffText, targetDescription, applicableRules, apiKey || '', options.model || 'gemini-2.5-flash');
+    // 4. Resolve Effective Provider, Model, and API Key
+    const settings = resolveEffectiveSettings(options);
+    if (settings.provider !== 'ollama' && (!settings.apiKey || settings.apiKey.trim() === '')) {
+        throw new Error(`API Key is missing for provider "${settings.provider}".\n` +
+            `Run "revai config" to configure your API key or pass --api-key <your-key>.`);
+    }
+    // 5. Invoke AI Engine (Gemini, Groq, Ollama, OpenAI)
+    let aiResponse;
+    if (settings.provider === 'gemini') {
+        aiResponse = await reviewWithGemini(diffText, targetDescription, applicableRules, settings.apiKey || '', settings.model || 'gemini-3.5-flash');
+    }
+    else {
+        aiResponse = await reviewWithOpenAICompatible(diffText, targetDescription, applicableRules, settings.apiKey || '', settings.model, settings.baseUrl);
+    }
     // 6. Calculate Score & Status
     const score = calculateReviewScore(aiResponse.issues, aiResponse.scores);
     const result = {
         title: `Code Review: ${targetDescription}`,
-        targetDescription,
+        targetDescription: `${targetDescription} [${settings.provider.toUpperCase()} / ${settings.model}]`,
         timestamp: new Date().toISOString(),
         stats,
         score,

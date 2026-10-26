@@ -2,19 +2,19 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js Version](https://img.shields.io/badge/Node.js-%3E%3D18.0.0-green.svg)](https://nodejs.org)
-[![AI Engine](https://img.shields.io/badge/AI-Google_Gemini_Flash_(100%25_Free)-orange.svg)](https://aistudio.google.com)
+[![AI Engine](https://img.shields.io/badge/AI-Google_Gemini_%2F_Groq_%2F_Ollama-orange.svg)](https://aistudio.google.com)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/amrkamal1993/RevAI)
 
-> **RevAI** is a developer-friendly, zero-cost AI Code Reviewer with **preloaded coding standards** across major programming languages (Flutter/Dart, TypeScript, Python, Go, Java, and more). It delivers actionable code reviews, architectural risk explanations, ready-to-copy code fixes, and a comprehensive **Quality Score (0-100)** with letter grades.
+> **RevAI** is a developer-friendly, zero-cost AI Code Reviewer with **preloaded coding standards** across major programming languages (Flutter/Dart, TypeScript, Python, Go, Java, and more). It delivers actionable reviews, architectural risk explanations, ready-to-copy code fixes, and a comprehensive **Quality Score (0-100)** with letter grades.
 
 ---
 
 ## 🌟 Why RevAI?
 
-- 💸 **100% Free**: Powered by Google Gemini Flash via Google AI Studio (generous free tier: 15 req/min and 1,000,000 token context window).
+- 💸 **100% Free & Flexible**: Powered by **Google Gemini (3.5 / 3.8 Flash)** by default. Also supports **Groq** (free Llama 3.3 70B), **Ollama** (100% offline local models), and custom OpenAI-compatible endpoints.
 - 📐 **Preloaded Language Rules**: Built-in rules for **Flutter/Dart**, **TypeScript/JavaScript**, **Python**, **Go**, **Java**, **PHP**, **Rust**, **OWASP Security**, and **SOLID Principles**.
 - 📊 **Quality Scorecard**: Instant 0–100 score + letter grade (`A+` to `F`) with breakdown across Security, Performance, Reliability, Clean Code, and Rule Adherence.
-- 🔀 **Frictionless Git Integration**: Review uncommitted changes, staged files, branches, or live GitHub PRs with a single command.
+- 🔀 **Universal Git Integration**: Review uncommitted changes, staged files, branches, or live GitHub PRs with a single command.
 - 🌐 **Interactive Web Dashboard**: Launch a stunning, dark-mode browser dashboard (`--ui`) with visual diff comparisons and one-click fix copying.
 - 📝 **GitHub PR Ready**: Export structured markdown comments ready for CI/CD or PR reviews.
 
@@ -22,84 +22,125 @@
 
 ## 🚀 Quick Setup (30 Seconds)
 
-### 1. Install RevAI Globally
-You can install RevAI directly from GitHub:
+### 1. Install Globally (Run Once)
+Install RevAI globally on your machine with a single command:
 
 ```bash
-git clone https://github.com/amrkamal1993/RevAI.git
-cd RevAI
-npm install
-npm run build
-npm link
+npm install -g github:amrkamal1993/RevAI
 ```
-*(Now `revai` is available globally in any terminal!)*
+*(Or clone and link locally: `git clone https://github.com/amrkamal1993/RevAI.git && cd RevAI && npm install && npm run build && npm link`)*
 
-### 2. Get a 100% Free Gemini API Key
-1. Go to **[Google AI Studio](https://aistudio.google.com/app/apikey)**.
-2. Click **"Create API Key"** (zero credit card required).
+Now `revai` is available globally in **any repository or terminal** on your machine!
 
-### 3. Save Your Key (One-time Setup)
-Save your API key permanently so you never need to type it again:
+---
+
+### 2. Configure Your API Key & Model (`revai config`)
+
+You have two easy ways to configure your key:
+
+#### Option A: Interactive Setup Wizard (Recommended)
+Simply run:
 ```bash
+revai config
+```
+This launches an interactive wizard that prompts you for your preferred provider, model, and API key:
+```
+⚙️  RevAI Interactive Configuration Wizard
+Available Providers:
+  1. gemini  - Google Gemini (3.5/3.8 Flash) [100% Free Tier, Recommended]
+  2. groq    - Groq Cloud (Llama 3.3 70B, Ultra-fast Free Tier)
+  3. ollama  - Ollama (100% Offline Local Model, Zero Key Needed)
+  4. openai  - OpenAI or DeepSeek / Custom Compatible Endpoint
+
+Choose provider [gemini]: gemini
+Choose Model name [gemini-3.5-flash]: gemini-3.5-flash
+Enter API key: AIzaSy...
+✔ Configuration updated successfully!
+```
+
+#### Option B: Direct One-Line Setup
+```bash
+# Save your free Gemini API key:
 revai config --set-key "YOUR_GEMINI_API_KEY"
+
+# Or view current configuration:
+revai config --show
+```
+
+> **💡 Automatic Key Prompt**: If you run `revai` without setting up a key first, the CLI will automatically ask you for your API key and save it permanently!
+
+---
+
+## 🔄 Using Models Other Than Gemini (Groq, Ollama, DeepSeek, OpenAI)
+
+RevAI is model-agnostic. You can switch to any other AI model or local offline engine at any time:
+
+### 1. Switch to Google Gemini 3.8 Flash (Deep Reasoning)
+```bash
+revai config --set-model gemini-3.8-flash
+```
+
+### 2. Switch to Groq (Ultra-Fast & Free Llama 3.3 70B)
+Get a free key from [console.groq.com](https://console.groq.com/keys):
+```bash
+revai config --set-provider groq --set-model llama-3.3-70b-versatile --set-key "gsk_..."
+```
+
+### 3. Switch to Ollama (100% Offline & Free — Zero Key Needed)
+Run completely offline with your local LLM (e.g., `qwen2.5-coder` or `llama3`):
+```bash
+revai config --set-provider ollama --set-model qwen2.5-coder
+```
+
+### 4. Switch to DeepSeek or OpenAI
+```bash
+revai config --set-provider openai --set-model deepseek-chat --set-url https://api.deepseek.com/v1 --set-key "sk-..."
+```
+
+### 5. Override on the Fly (Without Changing Saved Settings)
+```bash
+# Test a review with a specific model for one run:
+revai --model gemini-3.8-flash
+revai --provider groq --model llama-3.3-70b-versatile
+revai --provider ollama --model qwen2.5-coder
 ```
 
 ---
 
-## 🛠️ Usage Examples
+## 🛠️ Usage Examples in Any Project
 
-Navigate to **any Git repository** on your machine and run:
+Navigate to **any Git repository** on your computer and run:
 
-### Review Working Changes in Current Project
 ```bash
-# Reviews all current uncommitted changes:
+# Review current uncommitted changes (staged + unstaged):
 revai
 
 # Review ONLY staged changes (ready to commit):
 revai --staged
 
-# Review ONLY unstaged changes:
-revai --working
-```
-
-### Review a Feature Branch
-Compare any branch against `main` (or a custom base):
-```bash
-# Compare feature-branch against main:
+# Review a feature branch against main:
 revai --branch feature/user-auth
 
-# Compare against develop or staging:
-revai --branch feature/user-auth --base develop
-```
-
-### Launch Interactive Web Dashboard (`--ui`)
-Open an interactive, dark-mode dashboard in your browser:
-```bash
+# Open interactive Web Dashboard in browser:
 revai --ui
-# Or with a branch:
 revai --branch feature/checkout --ui
-```
 
-### Review a GitHub Pull Request Directly
-Review any pull request on GitHub without cloning the repo:
-```bash
+# Review a GitHub PR directly from URL:
 revai --pr https://github.com/flutter/flutter/pull/12345
-```
 
-### Export Markdown for GitHub / GitLab PR Comments
-```bash
+# Export Markdown for GitHub/GitLab PR comments:
 revai --markdown > pr-review.md
 ```
 
-### List Preloaded Coding Rules
+### 💡 Pro-Tip: Make it a Native Git Command (`git review`)
 ```bash
-# List all 26+ built-in rules:
-revai rules
-
-# Filter rules by language:
-revai rules --lang flutter
-revai rules --lang ts
-revai rules --lang py
+git config --global alias.review "!revai"
+```
+Now in **any Git project**, you can simply type:
+```bash
+git review
+git review --staged
+git review --ui
 ```
 
 ---
@@ -113,7 +154,7 @@ When you run `revai`, you receive a comprehensive audit consisting of:
 ║              ⚡ RevAI — Intelligent AI Code Review Report             ║
 ╚═══════════════════════════════════════════════════════════════════════╝
 
-  Target:      Branch: feature/user-auth compared to main
+  Target:      Branch: feature/user-auth compared to main [GEMINI / gemini-3.5-flash]
   Languages:   DART, TS
   Diff Stats:  +24 -1 lines across 2 file(s)
   Rules:       15 preloaded rules audited
@@ -131,7 +172,7 @@ When you run `revai`, you receive a comprehensive audit consisting of:
    📐 Rule Adherence  ████████████░░  89%
 
 🔍 Detected Issues & Recommendations (2 total):
-   🔴 Critical: 0   🟠 Major: 1   🟡 Minor: 1   🔵 Suggestions: 0
+   🔴 Critical: 0   🟠 Major: 1   🟡 Minor: 1   🔵 Suggestions: 0 
 
  1.  MAJOR  TextEditingController is never disposed
     File: lib/screens/login_screen.dart:10  [Rule: FLUTTER-002]

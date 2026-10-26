@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import dotenv from 'dotenv';
+import { AIProvider, ReviewOptions } from './types.js';
 
 // Load .env from cwd if present
 dotenv.config();
@@ -11,10 +12,10 @@ const GLOBAL_CONFIG_FILE = path.join(GLOBAL_CONFIG_DIR, 'config.json');
 
 export interface AppConfig {
   geminiApiKey?: string;
-  groqApiKey?: string;
-  defaultProvider?: 'gemini' | 'groq' | 'ollama';
+  customApiKey?: string;
+  defaultProvider?: AIProvider;
   defaultModel?: string;
-  defaultRulesThreshold?: number;
+  baseUrl?: string;
 }
 
 export function loadGlobalConfig(): AppConfig {
@@ -42,18 +43,50 @@ export function saveGlobalConfig(config: Partial<AppConfig>): void {
   }
 }
 
-export function resolveApiKey(optionsKey?: string, provider = 'gemini'): string | undefined {
-  if (optionsKey) return optionsKey;
-  
-  const envKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GROQ_API_KEY;
-  if (envKey) return envKey;
-
+export function resolveEffectiveSettings(options: ReviewOptions): {
+  provider: AIProvider;
+  model: string;
+  apiKey?: string;
+  baseUrl?: string;
+} {
   const globalCfg = loadGlobalConfig();
-  if (provider === 'gemini') {
-    return globalCfg.geminiApiKey;
-  } else if (provider === 'groq') {
-    return globalCfg.groqApiKey;
+
+  // 1. Resolve Provider (CLI flag > global config > default 'gemini')
+  const provider: AIProvider = options.provider || globalCfg.defaultProvider || 'gemini';
+
+  // 2. Resolve Model (CLI flag > global config > provider default)
+  let defaultModelForProvider = 'gemini-3.5-flash';
+  if (provider === 'groq') defaultModelForProvider = 'llama-3.3-70b-versatile';
+  else if (provider === 'ollama') defaultModelForProvider = 'qwen2.5-coder';
+  else if (provider === 'openai') defaultModelForProvider = 'gpt-4o-mini';
+
+  const model = options.model || globalCfg.defaultModel || defaultModelForProvider;
+
+  // 3. Resolve API Key
+  let apiKey = options.apiKey;
+  if (!apiKey) {
+    if (provider === 'gemini') {
+      apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || globalCfg.geminiApiKey;
+    } else if (provider === 'groq') {
+      apiKey = process.env.GROQ_API_KEY || globalCfg.customApiKey;
+    } else if (provider === 'openai') {
+      apiKey = process.env.OPENAI_API_KEY || globalCfg.customApiKey;
+    } else {
+      apiKey = globalCfg.customApiKey || process.env.CUSTOM_API_KEY;
+    }
   }
 
-  return undefined;
+  // 4. Resolve Base URL
+  let baseUrl = options.baseUrl || globalCfg.baseUrl;
+  if (!baseUrl) {
+    if (provider === 'groq') baseUrl = 'https://api.groq.com/openai/v1';
+    else if (provider === 'ollama') baseUrl = 'http://localhost:11434/v1';
+    else if (provider === 'openai') baseUrl = 'https://api.openai.com/v1';
+  }
+
+  return { provider, model, apiKey, baseUrl };
+}
+
+export function resolveApiKey(optionsKey?: string, provider: AIProvider = 'gemini'): string | undefined {
+  return resolveEffectiveSettings({ apiKey: optionsKey, provider }).apiKey;
 }
