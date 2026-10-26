@@ -1,4 +1,5 @@
 import { buildSystemPrompt, buildUserPrompt } from './prompt.js';
+import { validateAIReviewResponse } from './response.js';
 export async function reviewWithGemini(diffText, targetDescription, rules, apiKey, modelName = 'gemini-3.5-flash') {
     if (!apiKey || apiKey.trim() === '') {
         throw new Error(`Gemini API Key is missing!\n` +
@@ -6,8 +7,7 @@ export async function reviewWithGemini(diffText, targetDescription, rules, apiKe
             `👉 https://aistudio.google.com/app/apikey\n\n` +
             `Then set it using one of the following:\n` +
             `  • export GEMINI_API_KEY="your-key-here"\n` +
-            `  • revai config --set-key "your-key-here"\n` +
-            `  • revai review --api-key "your-key-here"`);
+            `  • run "revai config" for hidden interactive input`);
     }
     const systemPrompt = buildSystemPrompt(rules);
     const userPrompt = buildUserPrompt(diffText, targetDescription);
@@ -67,8 +67,7 @@ export async function reviewWithGemini(diffText, targetDescription, rules, apiKe
             else if (cleanJson.startsWith('```')) {
                 cleanJson = cleanJson.replace(/^```/, '').replace(/```$/, '').trim();
             }
-            const parsed = JSON.parse(cleanJson);
-            return parsed;
+            return validateAIReviewResponse(JSON.parse(cleanJson));
         }
         catch (err) {
             lastError = err;

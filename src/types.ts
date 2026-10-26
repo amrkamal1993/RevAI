@@ -25,6 +25,20 @@ export interface CodeIssue {
   fixedCodeSnippet?: string;
 }
 
+export interface AIReviewResponse {
+  summary: string;
+  positiveHighlights: string[];
+  scores: {
+    overall: number;
+    security: number;
+    performance: number;
+    reliability: number;
+    maintainability: number;
+    rulesAdherence: number;
+  };
+  issues: CodeIssue[];
+}
+
 export interface CategoryScore {
   name: string;
   score: number; // 0 - 100

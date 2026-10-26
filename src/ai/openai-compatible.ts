@@ -1,5 +1,6 @@
 import { buildSystemPrompt, buildUserPrompt } from './prompt.js';
 import { CodingRule } from '../types.js';
+import { validateAIReviewResponse } from './response.js';
 
 interface ReviewResponse {
   summary: string;
@@ -85,6 +86,5 @@ export async function reviewWithOpenAICompatible(
     cleanJson = cleanJson.replace(/^```/, '').replace(/```$/, '').trim();
   }
 
-  const parsed: ReviewResponse = JSON.parse(cleanJson);
-  return parsed;
+  return validateAIReviewResponse(JSON.parse(cleanJson));
 }

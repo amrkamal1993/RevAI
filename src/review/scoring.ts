@@ -27,10 +27,11 @@ export function calculateReviewScore(
 
   const calculatedOverall = Math.max(0, Math.min(100, baseScore));
 
-  // If AI model also gave an overall score, blend them (50% calculated deductions, 50% AI holistic judgment)
-  const finalOverall = rawScores?.overall 
-    ? Math.round((calculatedOverall * 0.6) + (rawScores.overall * 0.4))
-    : calculatedOverall;
+  // Let the model lower the score for broader quality concerns, but never let it
+  // raise the score above the issue-based calculation and hide reported defects.
+  const finalOverall = rawScores?.overall === undefined
+    ? calculatedOverall
+    : Math.min(calculatedOverall, Math.max(0, Math.min(100, Math.round(rawScores.overall))));
 
   // Build category score helper
   function buildCategoryScore(name: string, category: string, rawVal = 100): CategoryScore {
@@ -42,7 +43,7 @@ export function calculateReviewScore(
     score = Math.max(0, Math.min(100, score));
 
     if (rawVal !== undefined) {
-      score = Math.round((score * 0.5) + (rawVal * 0.5));
+      score = Math.min(score, Math.max(0, Math.min(100, Math.round(rawVal))));
     }
 
     return {

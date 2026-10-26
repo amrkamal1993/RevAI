@@ -30,7 +30,7 @@ export async function runCodeReview(options) {
     const settings = resolveEffectiveSettings(options);
     if (settings.provider !== 'ollama' && (!settings.apiKey || settings.apiKey.trim() === '')) {
         throw new Error(`API Key is missing for provider "${settings.provider}".\n` +
-            `Run "revai config" to configure your API key or pass --api-key <your-key>.`);
+            `Run "revai config" to enter your API key, or set the provider key in your environment.`);
     }
     // 5. Invoke AI Engine (Gemini, Groq, Ollama, OpenAI)
     let aiResponse;

@@ -1,11 +1,11 @@
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ReviewOptions, ReviewStats } from '../types.js';
 
 export function isGitRepo(cwd = process.cwd()): boolean {
   try {
-    execSync('git rev-parse --is-inside-work-tree', { cwd, stdio: 'ignore' });
+    execFileSync('git', ['rev-parse', '--is-inside-work-tree'], { cwd, stdio: 'ignore' });
     return true;
   } catch {
     return false;
@@ -14,31 +14,92 @@ export function isGitRepo(cwd = process.cwd()): boolean {
 
 export function getCurrentBranch(cwd = process.cwd()): string {
   try {
-    return execSync('git rev-parse --abbrev-ref HEAD', { cwd, encoding: 'utf-8' }).trim();
+    return execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd, encoding: 'utf-8' }).trim();
   } catch {
     return 'unknown';
   }
 }
 
 export async function fetchGitHubPRDiff(prUrl: string): Promise<string> {
-  // Accepts URL like: https://github.com/owner/repo/pull/123
-  let diffUrl = prUrl.trim();
-  if (!diffUrl.endsWith('.diff')) {
-    diffUrl = diffUrl.replace(/\/+$/, '') + '.diff';
+  const parsedUrl = new URL(prUrl.trim());
+  const match = parsedUrl.pathname.match(/^\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)\/pull\/(\d+)(?:\.diff)?\/?$/);
+  if (
+    parsedUrl.protocol !== 'https:' ||
+    parsedUrl.hostname !== 'github.com' ||
+    parsedUrl.port ||
+    parsedUrl.username ||
+    parsedUrl.password ||
+    parsedUrl.search ||
+    parsedUrl.hash ||
+    !match
+  ) {
+    throw new Error('Invalid GitHub PR URL. Expected https://github.com/{owner}/{repo}/pull/{number}.');
   }
 
-  const response = await fetch(diffUrl, {
-    headers: {
-      'User-Agent': 'RevAI-Code-Reviewer',
-      'Accept': 'text/plain'
+  const diffUrl = `https://github.com/${match[1]}/${match[2]}/pull/${match[3]}.diff`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  let response: Response;
+  try {
+    response = await fetch(diffUrl, {
+      headers: {
+        'User-Agent': 'RevAI-Code-Reviewer',
+        'Accept': 'text/plain'
+      },
+      redirect: 'error',
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch GitHub PR diff (Status: ${response.status} ${response.statusText})`);
     }
-  });
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch GitHub PR diff from ${diffUrl} (Status: ${response.status} ${response.statusText})`);
+    const maxBytes = 5 * 1024 * 1024;
+    const declaredLength = Number(response.headers.get('content-length'));
+    if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+      throw new Error('GitHub PR diff is too large (maximum 5 MB).');
+    }
+    if (!response.body) return '';
+
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let received = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+      if (received > maxBytes) {
+        await reader.cancel();
+        throw new Error('GitHub PR diff is too large (maximum 5 MB).');
+      }
+      chunks.push(value);
+    }
+    const content = new Uint8Array(received);
+    let offset = 0;
+    for (const chunk of chunks) {
+      content.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return new TextDecoder().decode(content);
+  } finally {
+    clearTimeout(timeout);
   }
+}
 
-  return await response.text();
+function git(cwd: string, args: string[], options: { encoding: BufferEncoding; maxBuffer?: number }): string {
+  return execFileSync('git', args, { cwd, encoding: options.encoding, maxBuffer: options.maxBuffer });
+}
+
+function resolveCommitish(value: string, label: string, cwd: string): string {
+  const candidate = value.trim();
+  if (!candidate || candidate.startsWith('-')) {
+    throw new Error(`Invalid ${label}: ${value}`);
+  }
+  try {
+    return git(cwd, ['rev-parse', '--verify', '--end-of-options', `${candidate}^{commit}`], { encoding: 'utf-8' }).trim();
+  } catch {
+    throw new Error(`Invalid ${label}: ${value}`);
+  }
 }
 
 export function getGitDiff(options: ReviewOptions, cwd = process.cwd()): { diff: string; description: string } {
@@ -56,56 +117,61 @@ export function getGitDiff(options: ReviewOptions, cwd = process.cwd()): { diff:
     throw new Error(`Current directory (${cwd}) is not a Git repository. Run inside a git repository or pass --patch / --pr.`);
   }
 
-  let diffCommand = '';
+  let diffArgs: string[] = [];
   let description = '';
 
   if (options.file) {
-    diffCommand = `git diff HEAD -- "${options.file}"`;
+    diffArgs = ['diff', 'HEAD', '--no-ext-diff', '--no-textconv', '--', options.file];
     description = `File: ${options.file}`;
   } else if (options.commit) {
-    diffCommand = `git show ${options.commit} --stat=0 -p`;
-    description = `Commit: ${options.commit}`;
+    const commit = resolveCommitish(options.commit, 'commit', cwd);
+    diffArgs = ['show', '--stat=0', '-p', '--no-ext-diff', '--no-textconv', commit];
+    description = `Commit: ${commit.slice(0, 12)}`;
   } else if (options.branch) {
     const base = options.base || 'main';
     // Check if base branch exists, fallback to master if main doesn't exist
-    let verifiedBase = base;
+    let verifiedBase: string;
+    let verifiedBaseName = base;
     try {
-      execSync(`git rev-parse --verify ${verifiedBase}`, { cwd, stdio: 'ignore' });
+      verifiedBase = resolveCommitish(base, 'base branch', cwd);
     } catch {
-      verifiedBase = 'master';
+      if (base !== 'main') throw new Error(`Invalid base branch: ${base}`);
+      verifiedBaseName = 'master';
+      verifiedBase = resolveCommitish('master', 'base branch', cwd);
     }
-    diffCommand = `git diff ${verifiedBase}...${options.branch}`;
-    description = `Branch comparison: ${options.branch} compared to ${verifiedBase}`;
+    const branch = resolveCommitish(options.branch, 'branch', cwd);
+    diffArgs = ['diff', '--no-ext-diff', '--no-textconv', `${verifiedBase}...${branch}`, '--'];
+    description = `Branch comparison: ${options.branch} compared to ${verifiedBaseName}`;
   } else if (options.staged) {
-    diffCommand = 'git diff --cached';
+    diffArgs = ['diff', '--cached', '--no-ext-diff', '--no-textconv'];
     description = 'Staged changes (git diff --cached)';
   } else if (options.working) {
-    diffCommand = 'git diff';
+    diffArgs = ['diff', '--no-ext-diff', '--no-textconv'];
     description = 'Unstaged working tree changes';
   } else {
     // Default smart mode:
     // 1. Try staged changes first
-    const staged = execSync('git diff --cached', { cwd, encoding: 'utf-8' });
+    const staged = git(cwd, ['diff', '--cached', '--no-ext-diff', '--no-textconv'], { encoding: 'utf-8' });
     if (staged.trim().length > 0) {
       return { diff: staged, description: 'Staged changes (ready to commit)' };
     }
 
     // 2. Try working tree + staged (HEAD)
-    const workingAndStaged = execSync('git diff HEAD', { cwd, encoding: 'utf-8' });
+    const workingAndStaged = git(cwd, ['diff', 'HEAD', '--no-ext-diff', '--no-textconv'], { encoding: 'utf-8' });
     if (workingAndStaged.trim().length > 0) {
       return { diff: workingAndStaged, description: 'All uncommitted changes (staged & working tree)' };
     }
 
     // 3. If working tree is clean, review the latest commit!
-    diffCommand = 'git show HEAD --stat=0 -p';
+    diffArgs = ['show', '--stat=0', '-p', '--no-ext-diff', '--no-textconv', 'HEAD'];
     description = 'Latest commit (HEAD)';
   }
 
   try {
-    const diff = execSync(diffCommand, { cwd, encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 });
+    const diff = git(cwd, diffArgs, { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 });
     return { diff, description };
   } catch (err: any) {
-    throw new Error(`Failed to execute Git command "${diffCommand}": ${err.message}`);
+    throw new Error(`Failed to execute Git command: ${err.message}`);
   }
 }
 

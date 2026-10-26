@@ -686,13 +686,13 @@ export function getDashboardHtml(initialData) {
       container.innerHTML = issues.map((issue, idx) => {
         const lineStr = issue.lineStart ? ':' + issue.lineStart + (issue.lineEnd ? '-' + issue.lineEnd : '') : '';
         return \`
-          <div class="issue-card \${issue.severity}">
+          <div class="issue-card \${escapeHtml(issue.severity)}">
             <div class="issue-header">
               <div class="issue-title-group">
                 <div class="badge-row">
-                  <span class="badge badge-\${issue.severity}">\${issue.severity}</span>
+                  <span class="badge badge-\${escapeHtml(issue.severity)}">\${escapeHtml(issue.severity)}</span>
                   <span class="issue-loc">\${escapeHtml(issue.file)}\${lineStr}</span>
-                  \${issue.ruleId ? \`<span style="font-size: 11px; color: var(--text-muted);">[\${issue.ruleId}]</span>\` : ''}
+                  \${issue.ruleId ? \`<span style="font-size: 11px; color: var(--text-muted);">[\${escapeHtml(issue.ruleId)}]</span>\` : ''}
                 </div>
                 <h4 class="issue-title">\${escapeHtml(issue.title)}</h4>
               </div>
@@ -722,7 +722,7 @@ export function getDashboardHtml(initialData) {
                     <div class="code-pane">
                       <div class="pane-header good">
                         <span>Recommended Fix</span>
-                        <button class="copy-btn" onclick="copySnippet(\` + JSON.stringify(issue.fixedCodeSnippet) + \`)">Copy Fix</button>
+                        <button class="copy-btn" data-copy-index="\${idx}">Copy Fix</button>
                       </div>
                       <pre><code>\${escapeHtml(issue.fixedCodeSnippet)}</code></pre>
                     </div>
@@ -739,6 +739,14 @@ export function getDashboardHtml(initialData) {
           </div>
         \`;
       }).join('');
+
+      container.querySelectorAll('[data-copy-index]').forEach(button => {
+        button.addEventListener('click', () => {
+          const index = Number(button.getAttribute('data-copy-index'));
+          const snippet = issues[index]?.fixedCodeSnippet;
+          if (typeof snippet === 'string') copySnippet(snippet);
+        });
+      });
     }
 
     function escapeHtml(text) {

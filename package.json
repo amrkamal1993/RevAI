@@ -11,6 +11,7 @@
     "build": "tsc",
     "start": "tsx src/cli.ts",
     "dev": "tsx watch src/cli.ts",
+    "test": "tsx test/mock-test.ts && tsx test/security.test.ts",
     "test-review": "tsx src/cli.ts review --staged"
   },
   "keywords": [

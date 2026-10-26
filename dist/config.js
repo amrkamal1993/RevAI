@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { randomUUID } from 'node:crypto';
 import dotenv from 'dotenv';
 // Load .env from cwd if present
 dotenv.config();
@@ -19,16 +20,33 @@ export function loadGlobalConfig() {
     return {};
 }
 export function saveGlobalConfig(config) {
+    let temporaryFile;
     try {
         if (!fs.existsSync(GLOBAL_CONFIG_DIR)) {
-            fs.mkdirSync(GLOBAL_CONFIG_DIR, { recursive: true });
+            fs.mkdirSync(GLOBAL_CONFIG_DIR, { recursive: true, mode: 0o700 });
         }
+        // Restrict both the directory and the file: the config may contain API credentials.
+        if (process.platform !== 'win32')
+            fs.chmodSync(GLOBAL_CONFIG_DIR, 0o700);
         const current = loadGlobalConfig();
         const updated = { ...current, ...config };
-        fs.writeFileSync(GLOBAL_CONFIG_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+        temporaryFile = `${GLOBAL_CONFIG_FILE}.${randomUUID()}.tmp`;
+        fs.writeFileSync(temporaryFile, JSON.stringify(updated, null, 2), { encoding: 'utf-8', mode: 0o600, flag: 'wx' });
+        if (process.platform !== 'win32')
+            fs.chmodSync(temporaryFile, 0o600);
+        fs.renameSync(temporaryFile, GLOBAL_CONFIG_FILE);
     }
     catch (err) {
         console.error('Failed to save global configuration:', err);
+        throw new Error('Could not save RevAI configuration securely. Check permissions on ~/.revai.');
+    }
+    finally {
+        if (temporaryFile && fs.existsSync(temporaryFile)) {
+            try {
+                fs.unlinkSync(temporaryFile);
+            }
+            catch { /* best-effort temporary-file cleanup */ }
+        }
     }
 }
 export function resolveEffectiveSettings(options) {

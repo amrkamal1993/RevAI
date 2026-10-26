@@ -1,4 +1,5 @@
 import { buildSystemPrompt, buildUserPrompt } from './prompt.js';
+import { validateAIReviewResponse } from './response.js';
 export async function reviewWithOpenAICompatible(diffText, targetDescription, rules, apiKey, modelName, baseUrl = 'https://api.openai.com/v1') {
     const systemPrompt = buildSystemPrompt(rules);
     const userPrompt = buildUserPrompt(diffText, targetDescription);
@@ -39,6 +40,5 @@ export async function reviewWithOpenAICompatible(diffText, targetDescription, ru
     else if (cleanJson.startsWith('```')) {
         cleanJson = cleanJson.replace(/^```/, '').replace(/```$/, '').trim();
     }
-    const parsed = JSON.parse(cleanJson);
-    return parsed;
+    return validateAIReviewResponse(JSON.parse(cleanJson));
 }

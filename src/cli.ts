@@ -39,7 +39,6 @@ program
   .option('-m, --markdown', 'Output GitHub-flavored markdown report')
   .option('-j, --json', 'Output raw JSON report')
   .option('-o, --output <file>', 'Save report output to a file')
-  .option('--api-key <key>', 'API Key for the chosen provider')
   .option('--provider <name>', 'AI Provider (gemini, groq, ollama, openai, custom)', 'gemini')
   .option('--model <name>', 'Model name (e.g. gemini-3.5-flash, gemini-3.8-flash, llama-3.3-70b-versatile, gpt-4o-mini)')
   .option('--base-url <url>', 'Custom API Base URL (for Ollama, DeepSeek, or OpenAI compatible)')
@@ -59,7 +58,6 @@ program
         markdown: opts.markdown,
         json: opts.json,
         outputFile: opts.output,
-        apiKey: opts.apiKey,
         provider: opts.provider as AIProvider,
         model: opts.model,
         baseUrl: opts.baseUrl
@@ -78,9 +76,7 @@ program
         }
         console.log('');
 
-        const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-        const inputKey = await rl.question(pc.green('Enter your API key now: '));
-        rl.close();
+        const inputKey = await promptHidden('Enter your API key (input hidden): ');
 
         if (!inputKey || !inputKey.trim()) {
           console.log(pc.red('No API key provided. Run "revai config" to set it up.'));
@@ -94,7 +90,6 @@ program
           saveGlobalConfig({ customApiKey: inputKey.trim() });
         }
         console.log(pc.green('✔ API Key saved successfully to ~/.revai/config.json!'));
-        options.apiKey = inputKey.trim();
       }
 
       console.log(pc.cyan(`⚡ Running AI Code Review using ${pc.bold(settings.provider.toUpperCase())} (${settings.model})...`));
@@ -150,7 +145,6 @@ program
 program
   .command('config')
   .description('Manage RevAI settings, default AI model, and API keys')
-  .option('--set-key <key>', 'Save API key permanently')
   .option('--set-model <model>', 'Set default AI model (e.g. gemini-3.8-flash, llama-3.3-70b-versatile, gpt-4o-mini)')
   .option('--set-provider <provider>', 'Set default AI provider (gemini, groq, ollama, openai, custom)')
   .option('--set-url <url>', 'Set custom base URL (e.g. for Ollama or custom proxy)')
@@ -158,15 +152,9 @@ program
   .option('--interactive', 'Run interactive setup wizard')
   .action(async (opts) => {
     // Direct flags handler
-    const hasFlags = opts.setKey || opts.setModel || opts.setProvider || opts.setUrl;
+    const hasFlags = opts.setModel || opts.setProvider || opts.setUrl;
     if (hasFlags) {
       const updates: Partial<AppConfig> = {};
-      if (opts.setKey) {
-        const cfg = loadGlobalConfig();
-        const prov = opts.setProvider || cfg.defaultProvider || 'gemini';
-        if (prov === 'gemini') updates.geminiApiKey = opts.setKey;
-        else updates.customApiKey = opts.setKey;
-      }
       if (opts.setModel) updates.defaultModel = opts.setModel;
       if (opts.setProvider) updates.defaultProvider = opts.setProvider as AIProvider;
       if (opts.setUrl) updates.baseUrl = opts.setUrl;
@@ -243,19 +231,7 @@ async function runInteractiveConfig(): Promise<void> {
   const modelAns = await rl.question(pc.yellow(`Choose Model name [${currentModel}]: `));
   const model = modelAns.trim() || currentModel;
 
-  // 3. API Key
-  let keyToSave: string | undefined = undefined;
-  if (provider !== 'ollama') {
-    const existingKey = provider === 'gemini' ? cfg.geminiApiKey : cfg.customApiKey;
-    const masked = existingKey ? `${existingKey.slice(0, 6)}...${existingKey.slice(-4)}` : 'None';
-    console.log(pc.dim(`Current Key: ${masked}`));
-    const keyAns = await rl.question(pc.yellow(`Enter API key (press Enter to keep existing): `));
-    if (keyAns.trim()) {
-      keyToSave = keyAns.trim();
-    }
-  }
-
-  // 4. Base URL
+  // 3. Base URL
   let baseUrlToSave: string | undefined = undefined;
   if (provider === 'ollama' || provider === 'custom' || provider === 'openai') {
     const defaultUrl = provider === 'ollama' ? 'http://localhost:11434/v1' : (cfg.baseUrl || 'https://api.openai.com/v1');
@@ -264,6 +240,18 @@ async function runInteractiveConfig(): Promise<void> {
   }
 
   rl.close();
+
+  // 4. API Key (read without terminal echo; environment variables are also supported).
+  let keyToSave: string | undefined = undefined;
+  if (provider !== 'ollama') {
+    const existingKey = provider === 'gemini' ? cfg.geminiApiKey : cfg.customApiKey;
+    const masked = existingKey ? `${existingKey.slice(0, 6)}...${existingKey.slice(-4)}` : 'None';
+    console.log(pc.dim(`Current Key: ${masked}`));
+    const keyAns = await promptHidden('Enter API key (press Enter to keep existing; input hidden): ');
+    if (keyAns.trim()) {
+      keyToSave = keyAns.trim();
+    }
+  }
 
   const updates: Partial<AppConfig> = {
     defaultProvider: provider,
@@ -281,6 +269,47 @@ async function runInteractiveConfig(): Promise<void> {
   console.log('');
   console.log(pc.bold(pc.green('✔ Configuration updated successfully!')));
   displayConfig();
+}
+
+function promptHidden(prompt: string): Promise<string> {
+  const input = process.stdin;
+  if (!input.isTTY || typeof input.setRawMode !== 'function' || !process.stdout.isTTY) {
+    throw new Error('Hidden API-key input requires an interactive terminal. Set the provider API key in the environment instead.');
+  }
+
+  return new Promise((resolve, reject) => {
+    let value = '';
+    const cleanup = () => {
+      input.removeListener('data', onData);
+      input.setRawMode(false);
+      input.pause();
+      process.stdout.write('\n');
+    };
+    const onData = (buffer: Buffer) => {
+      for (const char of buffer.toString('utf8')) {
+        if (char === '\u0003') {
+          cleanup();
+          reject(new Error('API-key entry cancelled.'));
+          return;
+        }
+        if (char === '\r' || char === '\n') {
+          cleanup();
+          resolve(value);
+          return;
+        }
+        if (char === '\u007f' || char === '\b') {
+          value = value.slice(0, -1);
+        } else if (char >= ' ') {
+          value += char;
+        }
+      }
+    };
+
+    process.stdout.write(prompt);
+    input.setRawMode(true);
+    input.resume();
+    input.on('data', onData);
+  });
 }
 
 // List Preloaded Rules Command

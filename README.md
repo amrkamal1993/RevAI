@@ -16,6 +16,7 @@
 - 📊 **Quality Scorecard**: Instant 0–100 score + letter grade (`A+` to `F`) with breakdown across Security, Performance, Reliability, Clean Code, and Rule Adherence.
 - 🔀 **Universal Git Integration**: Review uncommitted changes, staged files, branches, or live GitHub PRs with a single command.
 - 🌐 **Interactive Web Dashboard**: Launch a stunning, dark-mode browser dashboard (`--ui`) with visual diff comparisons and one-click fix copying.
+- 🔒 **Security Hardened**: Safe Git execution without shell injection, strictly isolated local dashboard (`127.0.0.1`) with DNS rebinding protection and Content Security Policy, and owner-only permissioned API key storage.
 - 📝 **GitHub PR Ready**: Export structured markdown comments ready for CI/CD or PR reviews.
 
 ---
@@ -54,14 +55,16 @@ Available Providers:
 
 Choose provider [gemini]: gemini
 Choose Model name [gemini-3.5-flash]: gemini-3.5-flash
-Enter API key: AIzaSy...
+Enter API key (input hidden):
 ✔ Configuration updated successfully!
 ```
 
-#### Option B: Direct One-Line Setup
+The key is saved in `~/.revai/config.json` with owner-only permissions on macOS and Linux. API keys are not accepted as command-line arguments so they do not end up in shell history or the process list.
+
+#### Option B: Environment Variable
 ```bash
-# Save your free Gemini API key:
-revai config --set-key "YOUR_GEMINI_API_KEY"
+# Set the key for the current shell session:
+export GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
 
 # Or view current configuration:
 revai config --show
@@ -81,10 +84,12 @@ revai config --set-model gemini-3.8-flash
 ```
 
 ### 2. Switch to Groq (Ultra-Fast & Free Llama 3.3 70B)
-Get a free key from [console.groq.com](https://console.groq.com/keys):
+Get a key from [console.groq.com](https://console.groq.com/keys), then configure the provider and enter the key in the hidden prompt:
 ```bash
-revai config --set-provider groq --set-model llama-3.3-70b-versatile --set-key "gsk_..."
+revai config --set-provider groq --set-model llama-3.3-70b-versatile
+revai config
 ```
+Alternatively, set `GROQ_API_KEY` in your environment.
 
 ### 3. Switch to Ollama (100% Offline & Free — Zero Key Needed)
 Run completely offline with your local LLM (e.g., `qwen2.5-coder` or `llama3`):
@@ -94,8 +99,10 @@ revai config --set-provider ollama --set-model qwen2.5-coder
 
 ### 4. Switch to DeepSeek or OpenAI
 ```bash
-revai config --set-provider openai --set-model deepseek-chat --set-url https://api.deepseek.com/v1 --set-key "sk-..."
+revai config --set-provider openai --set-model deepseek-chat --set-url https://api.deepseek.com/v1
+revai config
 ```
+Alternatively, set `OPENAI_API_KEY` in your environment.
 
 ### 5. Override on the Fly (Without Changing Saved Settings)
 ```bash
@@ -211,8 +218,9 @@ Contributions, new language rules, and feature requests are welcome!
 1. Fork the Project
 2. Create your Feature Branch (`git checkout -b feature/AmazingRule`)
 3. Commit your Changes (`git commit -m 'Add new rule for Python'`)
-4. Push to the Branch (`git push origin feature/AmazingRule`)
-5. Open a Pull Request
+4. Run tests and build (`npm test && npm run build`)
+5. Push to the Branch (`git push origin feature/AmazingRule`)
+6. Open a Pull Request
 
 ---
 

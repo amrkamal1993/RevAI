@@ -1,6 +1,6 @@
 ## ⚡ RevAI Code Review Report
 
-![Score](https://img.shields.io/badge/Quality_Score-43%2F100-red?style=for-the-badge) ![Grade](https://img.shields.io/badge/Grade-D-red?style=for-the-badge)
+![Score](https://img.shields.io/badge/Quality_Score-40%2F100-red?style=for-the-badge) ![Grade](https://img.shields.io/badge/Grade-D-red?style=for-the-badge)
 
 > **NEEDS_ATTENTION**: Significant defects, security concerns, or poor maintainability detected.
 
@@ -11,17 +11,17 @@
 | **Files Audited** | `2 file(s)` |
 | **Lines Changed** | `+24` / `-1` |
 | **Languages** | `DART, TS` |
-| **Preloaded Rules Audited** | `15 rules` |
+| **Preloaded Rules Audited** | `21 rules` |
 | **Total Issues** | **4** |
 
 ### 📊 Category Scores
 | Category | Score | Issues Found | Status |
 | :--- | :---: | :---: | :--- |
-| 🛡️ **Security** | `58%` | 1 | ⚠️ Attention |
-| ⚡ **Performance** | `77%` | ⚠️ Attention |
-| 🐛 **Reliability & Bugs** | `63%` | 1 | ⚠️ Attention |
-| 🧹 **Clean Code & Maintainability** | `74%` | 1 | ⚠️ Attention |
-| 📐 **Language Rules Adherence** | `73%` | 0 | ⚠️ Attention |
+| 🛡️ **Security** | `40%` | 1 | ⚠️ Attention |
+| ⚡ **Performance** | `65%` | 1 | ⚠️ Attention |
+| 🐛 **Reliability & Bugs** | `50%` | 1 | ⚠️ Attention |
+| 🧹 **Clean Code & Maintainability** | `60%` | 1 | ⚠️ Attention |
+| 📐 **Language Rules Adherence** | `45%` | 0 | ⚠️ Attention |
 
 ### ✨ Highlights & Strengths
 - ✅ Clean separation of concerns with asynchronous network login call

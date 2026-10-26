@@ -1,5 +1,6 @@
 import { buildSystemPrompt, buildUserPrompt } from './prompt.js';
 import { CodingRule } from '../types.js';
+import { validateAIReviewResponse } from './response.js';
 
 interface GeminiReviewResponse {
   summary: string;
@@ -44,8 +45,7 @@ export async function reviewWithGemini(
       `👉 https://aistudio.google.com/app/apikey\n\n` +
       `Then set it using one of the following:\n` +
       `  • export GEMINI_API_KEY="your-key-here"\n` +
-      `  • revai config --set-key "your-key-here"\n` +
-      `  • revai review --api-key "your-key-here"`
+      `  • run "revai config" for hidden interactive input`
     );
   }
 
@@ -117,8 +117,7 @@ export async function reviewWithGemini(
         cleanJson = cleanJson.replace(/^```/, '').replace(/```$/, '').trim();
       }
 
-      const parsed: GeminiReviewResponse = JSON.parse(cleanJson);
-      return parsed;
+      return validateAIReviewResponse(JSON.parse(cleanJson));
     } catch (err: any) {
       lastError = err;
       if (err.message?.includes('404')) {
